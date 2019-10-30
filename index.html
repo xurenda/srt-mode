@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>贵州大学西楼模型展示</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no">
+  <style type="text/css">
+    body {
+      font-family: -apple-system, "Noto Sans", "Helvetica Neue", Helvetica, "Nimbus Sans L", Arial, "Liberation Sans", "PingFang SC", serif;
+      margin: 0;
+      height: 100vh;
+    }
+    canvas {
+      display: block;
+    }
+    #tips {
+      position: absolute;
+      top: 0;
+      right: 15px;
+      width: 245px;
+      z-index: 100;
+      background-color: #1a1a38;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-bottom: 20px;
+      font-size: 14px;
+    }
+    #shade {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, .8);
+      color: #fff;
+      font-size: 50px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: 1s;
+    }
+    #unmuteButton {
+      /* all: unset; */
+      position: absolute;
+      top: 0;
+      left: 85px;
+    }
+  </style>
+</head>
+<body onload="draw();">
+<div id="tips">
+  <h4>操作方法</h4>
+  <span>鼠标左键：旋转</span>
+  <span>鼠标中键：缩放</span>
+  <span>鼠标右键：平移</span>
+</div>
+<div id="shade">
+  模型加载中，请稍后...
+</div>
+<audio muted autoplay="autoplay" loop="loop" src="music.mp3" id="audio">
+</audio>
+<button id="unmuteButton">背景音乐</button>
+</body>
+<script src="three.min.js"></script>
+<script src="ColladaLoader.js"></script>
+<script src="OrbitControls.js"></script>
+<script src="stats.min.js"></script>
+<script src="dat.gui.min.js"></script>
+<script src="SceneUtils.js"></script>
+
+<script>
+    var renderer;
+    function initRender() {
+        renderer = new THREE.WebGLRenderer({antialias:true});
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        //告诉渲染器需要阴影效果
+        renderer.setClearColor(0xffffff);
+        document.body.appendChild(renderer.domElement);
+    }
+
+    var camera;
+    function initCamera() {
+        camera = new THREE.PerspectiveCamera(110, window.innerWidth/window.innerHeight, 0.1, 10000);
+        camera.position.set(20, 30, 60);
+        // camera.lookAt(new THREE.Vector3(20, 50, 60));
+    }
+
+    var scene;
+    function initScene() {
+        scene = new THREE.Scene();
+    }
+
+    //初始化dat.GUI简化试验流程
+    var gui;
+    function initGui() {
+        //声明一个保存需求修改的相关数据的对象
+        gui = {
+        };
+        var datGui = new dat.GUI();
+        //将设置属性添加到gui当中，gui.add(对象，属性，最小值，最大值）
+    }
+
+    var light;
+    function initLight() {
+        scene.add(new THREE.AmbientLight(0x4c454d));
+        // scene.add(new THREE.AmbientLight(0xffffff));
+
+        light = new THREE.PointLight(0xffffff);
+        light.position.set(20, 20, 20);
+
+        //告诉平行光需要开启阴影投射
+        light.castShadow = true;
+
+        scene.add(light);
+    }
+
+    /* 创建网格 */
+    function createMesh(geometry) {
+
+      var meshMaterial = new THREE.MeshNormalMaterial();
+      meshMaterial.side = THREE.DoubleSide;
+
+      var wireFrameMaterial = new THREE.MeshBasicMaterial();
+      wireFrameMaterial.wireframe = true;
+
+      var plane = new THREE.SceneUtils.createMultiMaterialObject(geometry, [meshMaterial, wireFrameMaterial]);
+
+      return plane;
+    }
+    
+    /* 场景中的内容 */
+    function initContent() {
+
+    // var plane = createMesh(new THREE.PlaneGeometry(300, 150, 10, 10));
+    var groundGeometry = new THREE.PlaneGeometry(300, 150, 10, 10);
+		var groundMaterial = new THREE.MeshBasicMaterial({color: 0x4c454d});
+
+		var plane = new THREE.Mesh(groundGeometry, groundMaterial);
+    plane.rotateX( -(Math.PI / 2) )
+    scene.add(plane);
+
+    }
+
+    function initModel() {
+
+        //辅助工具
+        // var helper = new THREE.AxesHelper(5000);
+        // scene.add(helper);
+
+        var loader = new THREE.ColladaLoader();
+
+        var mesh;
+        loader.load("data.dae", function (result) {
+            mesh = result.scene.children[0].clone();
+            mesh.scale.set(0.03,0.03,0.03)
+            mesh.rotateX( -(Math.PI / 2) )
+            mesh.rotateZ( -(Math.PI * 1.1 / 2) )
+            // var meshMaterial = new THREE.MeshLambertMaterial({
+            //   emissive: 0x4c454d
+            // });
+            // mesh.traverse(function(child) {
+            //     if (child instanceof THREE.Mesh) {
+            //         child.material = meshMaterial;
+            //     }
+            // });
+            scene.add(mesh);
+            document.getElementById('shade').style.display = 'none';
+        });
+    }
+
+    //初始化性能插件
+    var stats;
+    function initStats() {
+        stats = new Stats();
+        document.body.appendChild(stats.dom);
+    }
+
+    //用户交互插件 鼠标左键按住旋转，右键按住平移，滚轮缩放
+    var controls;
+    function initControls() {
+
+        controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+        // 如果使用animate方法时，将此函数删除
+        // controls.addEventListener( 'change', render );
+        // 使动画循环使用时阻尼或自转 意思是否有惯性
+        controls.enableDamping = true;
+        //动态阻尼系数 就是鼠标拖拽旋转灵敏度
+        controls.dampingFactor = 0.25;
+        //是否可以缩放
+        controls.enableZoom = true;
+        //是否自动旋转
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.7;
+        //设置相机距离原点的最远距离
+        controls.minDistance  = 82;
+        //设置相机距离原点的最远距离
+        controls.maxDistance  = 120;
+        //是否开启右键拖拽
+        controls.enablePan = true;
+    }
+
+    function render() {
+
+        renderer.render( scene, camera );
+    }
+
+    //窗口变动触发的函数
+    function onWindowResize() {
+
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        render();
+        renderer.setSize( window.innerWidth, window.innerHeight );
+
+    }
+
+    function animate() {
+        //更新控制器
+        render();
+
+        //更新性能插件
+        stats.update();
+
+        controls.update();
+
+        requestAnimationFrame(animate);
+    }
+
+    function draw() {
+      if ((navigator.userAgent.match(/(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i))) {
+      document.getElementById('tips').style.display = 'none'
+    }
+
+    var audio = document.getElementById('audio')
+    var unmuteButton = document.getElementById('unmuteButton')
+    unmuteButton.addEventListener('click', function() {
+      audio.muted = !audio.muted
+    })
+        initGui();
+        initRender();
+        initScene();
+        initCamera();
+        initLight();
+        initModel();
+        initContent();
+        initControls();
+        initStats();
+
+        animate();
+        window.onresize = onWindowResize;
+    }
+</script>
+</html>
